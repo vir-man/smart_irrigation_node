@@ -36,57 +36,100 @@ const char* aws_cert = "-----BEGIN CERTIFICATE-----\nYOUR_DEVICE_CERT_HERE\n----
 const char* aws_private_key = "-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY_HERE\n-----END PRIVATE KEY-----";
 
 // --- SENSOR MODULE ---
-// Reads analog value from potentiometer and converts to moisture percentage
+/**
+ * SoilMoistureSensor
+ * Handles reading analog values from a soil moisture sensor (potentiometer) and converts them to percentage.
+ * Encapsulates initialization, reading, and de-initialization for power saving.
+ */
 class SoilMoistureSensor {
   int analogPin; // Pin connected to soil moisture sensor
 public:
-  // Constructor: sets the analog pin
+  /**
+   * Constructor: sets the analog pin for the sensor
+   * @param pin Analog pin number
+   */
   SoilMoistureSensor(int pin) : analogPin(pin) {}
-  // Initializes the sensor pin
+  /**
+   * Initializes the sensor pin
+   */
   void begin() { pinMode(analogPin, INPUT); }
-  // Reads the analog value and converts to percentage (0-100%)
+  /**
+   * Reads the analog value and converts to percentage (0-100%)
+   * @return Moisture percentage
+   */
   int readPercent() {
     int raw = analogRead(analogPin);
     return map(raw, 0, 4095, 0, 100);
   }
-  // De-initializes the sensor pin (for power saving)
+  /**
+   * De-initializes the sensor pin for power saving
+   */
   void deinit() { pinMode(analogPin, INPUT); }
 };
 
 // --- ACTUATOR MODULE ---
-// Controls the valve (LED) to irrigate when needed
+/**
+ * ValveActuator
+ * Controls the valve actuator (LED) to irrigate when needed.
+ * Encapsulates initialization, ON/OFF control, and de-initialization for power saving.
+ */
 class ValveActuator {
   int ledPin; // Pin connected to valve actuator (LED)
 public:
-  // Constructor: sets the digital pin
+  /**
+   * Constructor: sets the digital pin for the actuator
+   * @param pin Digital pin number
+   */
   ValveActuator(int pin) : ledPin(pin) {}
-  // Initializes the actuator pin
+  /**
+   * Initializes the actuator pin
+   */
   void begin() { pinMode(ledPin, OUTPUT); }
-  // Turns the valve ON (LED ON)
+  /**
+   * Turns the valve ON (LED ON)
+   */
   void on()  { digitalWrite(ledPin, HIGH); }
-  // Turns the valve OFF (LED OFF)
+  /**
+   * Turns the valve OFF (LED OFF)
+   */
   void off() { digitalWrite(ledPin, LOW); }
-  // De-initializes the actuator pin (for power saving)
+  /**
+   * De-initializes the actuator pin for power saving
+   */
   void deinit() { pinMode(ledPin, INPUT); }
 };
 
 // --- EEPROM MODULE ---
-// Stores and retrieves the moisture threshold value
+/**
+ * ThresholdConfig
+ * Manages the moisture threshold value using EEPROM for persistent storage.
+ * Handles initialization, reading, writing, and sanity checks for the threshold.
+ */
 class ThresholdConfig {
   int threshold; // Moisture threshold value
 public:
-  // Constructor: sets default threshold
+  /**
+   * Constructor: sets default threshold
+   */
   ThresholdConfig() : threshold(DEFAULT_THRESHOLD) {}
-  // Initializes EEPROM
+  /**
+   * Initializes EEPROM
+   */
   void begin() { EEPROM.begin(EEPROM_SIZE); }
-  // Gets threshold from EEPROM, with sanity check
+  /**
+   * Gets threshold from EEPROM, with sanity check
+   * @return Moisture threshold value
+   */
   int get() {
     int t = EEPROM.read(EEPROM_ADDR);
     if (t < 10 || t > 90) t = DEFAULT_THRESHOLD;
     threshold = t;
     return threshold;
   }
-  // Sets threshold and saves to EEPROM
+  /**
+   * Sets threshold and saves to EEPROM
+   * @param t New threshold value
+   */
   void set(int t) {
     threshold = t;
     EEPROM.write(EEPROM_ADDR, t);
@@ -95,10 +138,18 @@ public:
 };
 
 // --- CRC MODULE ---
-// Calculates CRC-8 for payload integrity
+/**
+ * CRC8
+ * Provides static method to calculate CRC-8 for payload integrity.
+ */
 class CRC8 {
 public:
-  // Static method to calculate CRC-8
+  /**
+   * Calculates CRC-8 for given data
+   * @param data Pointer to data array
+   * @param len Length of data
+   * @return CRC-8 value
+   */
   static uint8_t calc(uint8_t *data, size_t len) {
     uint8_t crc = 0x00;
     for (size_t i = 0; i < len; i++) {
@@ -115,10 +166,17 @@ public:
 };
 
 // --- LORAWAN MODULE ---
-// Simulates LoRaWAN payload and prints to Serial
+/**
+ * LoRaWAN
+ * Simulates LoRaWAN payload and prints to Serial, including CRC.
+ */
 class LoRaWAN {
 public:
-  // Formats and prints payload as hex, including CRC
+  /**
+   * Formats and prints payload as hex, including CRC
+   * @param moisturePercent Moisture percentage
+   * @param threshold Moisture threshold
+   */
   void sendPayload(int moisturePercent, int threshold) {
     uint8_t payload[2];
     payload[0] = moisturePercent;
@@ -137,37 +195,46 @@ public:
 };
 
 // --- WIFI MANAGER MODULE ---
-// Handles WiFi connection and provisioning via AP and web server
+/**
+ * WiFiManager
+ * Handles WiFi connection and provisioning via AP and web server.
+ * Manages credential storage, AP setup, and connection logic.
+ */
 class WiFiManager {
 public:
-  String ssid, pass; // WiFi credentials
-  bool provisioned; // True if credentials are set
-  WebServer server; // Web server for provisioning
+  char ssid[WIFI_CRED_MAXLEN] = {0};
+  char pass[WIFI_CRED_MAXLEN] = {0};
+  bool provisioned;
+  WebServer server;
   WiFiManager() : provisioned(false), server(80) {}
-  // Loads credentials from EEPROM
+  /**
+   * Loads credentials from EEPROM
+   */
   void loadCredentials() {
-    char ssidBuf[WIFI_CRED_MAXLEN] = {0};
-    char passBuf[WIFI_CRED_MAXLEN] = {0};
-    for (int i = 0; i < WIFI_CRED_MAXLEN; i++) {
-      ssidBuf[i] = EEPROM.read(WIFI_CRED_EEPROM_ADDR + i);
-      passBuf[i] = EEPROM.read(WIFI_CRED_EEPROM_ADDR + WIFI_CRED_MAXLEN + i);
+    for (uint16_t i = 0; i < WIFI_CRED_MAXLEN; i++) {
+      ssid[i] = EEPROM.read(WIFI_CRED_EEPROM_ADDR + i);
+      pass[i] = EEPROM.read(WIFI_CRED_EEPROM_ADDR + WIFI_CRED_MAXLEN + i);
     }
-    ssid = String(ssidBuf);
-    pass = String(passBuf);
-    provisioned = ssid.length() > 0 && pass.length() > 0;
+    provisioned = (ssid[0] != 0 && pass[0] != 0);
   }
-  // Saves credentials to EEPROM
-  void saveCredentials(const String& s, const String& p) {
-    for (int i = 0; i < WIFI_CRED_MAXLEN; i++) {
-      EEPROM.write(WIFI_CRED_EEPROM_ADDR + i, i < s.length() ? s[i] : 0);
-      EEPROM.write(WIFI_CRED_EEPROM_ADDR + WIFI_CRED_MAXLEN + i, i < p.length() ? p[i] : 0);
+  /**
+   * Saves credentials to EEPROM
+   * @param s SSID
+   * @param p Password
+   */
+  void saveCredentials(const char* s, const char* p) {
+    for (uint16_t i = 0; i < WIFI_CRED_MAXLEN; i++) {
+      EEPROM.write(WIFI_CRED_EEPROM_ADDR + i, i < strlen(s) ? s[i] : 0);
+      EEPROM.write(WIFI_CRED_EEPROM_ADDR + WIFI_CRED_MAXLEN + i, i < strlen(p) ? p[i] : 0);
+      ssid[i] = (i < strlen(s)) ? s[i] : 0;
+      pass[i] = (i < strlen(p)) ? p[i] : 0;
     }
     EEPROM.commit();
-    ssid = s;
-    pass = p;
     provisioned = true;
   }
-  // Starts AP and web server for WiFi provisioning
+  /**
+   * Starts AP and web server for WiFi provisioning
+   */
   void startProvisioning() {
     Serial.println("Starting WiFi provisioning AP...");
     WiFi.softAP(AP_SSID, AP_PASS);
@@ -186,7 +253,7 @@ public:
     server.on("/save", HTTP_POST, [this]() {
       String newSsid = server.arg("ssid");
       String newPass = server.arg("pass");
-      saveCredentials(newSsid, newPass);
+      saveCredentials(newSsid.c_str(), newPass.c_str());
       String msg = "<html><body><h2>Saved! Restarting...</h2></body></html>";
       server.send(200, "text/html", msg);
       delay(1000);
@@ -199,31 +266,33 @@ public:
       delay(10);
     }
   }
-  // Connects to WiFi using stored credentials
+  /**
+   * Connects to WiFi using stored credentials
+   */
   void connectWiFi() {
     WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid.c_str(), pass.c_str());
+    WiFi.begin(ssid, pass);
     Serial.print("Connecting to WiFi");
-    int tries = 0;
+    uint8_t tries = 0;
     while (WiFi.status() != WL_CONNECTED && tries < 20) {
       delay(500);
       Serial.print(".");
       tries++;
     }
     Serial.println();
-    if (WiFi.status() == WL_CONNECTED) {
-      Serial.println("WiFi connected.");
-    } else {
-      Serial.println("WiFi failed.");
-    }
+    Serial.println(WiFi.status() == WL_CONNECTED ? "WiFi connected." : "WiFi failed.");
   }
-  // Main entry: loads credentials, provisions if needed, then connects
+  /**
+   * Main entry: loads credentials, provisions if needed, then connects
+   */
   void begin() {
     loadCredentials();
     if (!provisioned) startProvisioning();
     connectWiFi();
   }
-  // De-initializes WiFi (for power saving)
+  /**
+   * De-initializes WiFi (for power saving)
+   */
   void deinit() {
     WiFi.disconnect(true);
     WiFi.mode(WIFI_OFF);
@@ -231,14 +300,20 @@ public:
 };
 
 // --- AWS CLOUD MODULE ---
-// Handles sending data to AWS IoT Core via HTTP or MQTT
+/**
+ * CloudClient
+ * Handles sending data to AWS IoT Core via HTTP or MQTT.
+ * Manages secure client, MQTT setup, and unified send logic.
+ */
 class CloudClient {
 public:
   enum Mode { HTTP, MQTT };
   static Mode commMode; // Communication mode
   static WiFiClientSecure secureClient; // Secure client for MQTT
   static PubSubClient mqttClient; // MQTT client
-  // Initializes MQTT client and certificates
+  /**
+   * Initializes MQTT client and certificates
+   */
   static void beginMQTT() {
     secureClient.setCACert(aws_root_ca);
     secureClient.setCertificate(aws_cert);
@@ -258,32 +333,45 @@ public:
     }
     if (!mqttClient.connected()) Serial.println("MQTT connection failed!");
   }
-  // Sends data to AWS endpoint as JSON via HTTP POST
+  /**
+   * Sends data to AWS endpoint as JSON via HTTP POST
+   * @param moisture Moisture percentage
+   * @param threshold Moisture threshold
+   */
   static void sendToAWS_HTTP(int moisture, int threshold) {
     if (WiFi.status() != WL_CONNECTED) {
       Serial.println("WiFi not connected. HTTP POST skipped.");
       return;
     }
     HTTPClient http;
-    String url = AWS_ENDPOINT;
-    http.begin(url);
+    http.begin(AWS_ENDPOINT);
     http.addHeader("Content-Type", "application/json");
-    String payload = "{\"moisture\":" + String(moisture) + ",\"threshold\":" + String(threshold) + "}";
+    char payload[64];
+    snprintf(payload, sizeof(payload), "{\"moisture\":%d,\"threshold\":%d}", moisture, threshold);
     int httpResponseCode = http.POST(payload);
     Serial.print("AWS HTTP POST Response: ");
     Serial.println(httpResponseCode);
     if (httpResponseCode <= 0) Serial.println("HTTP POST failed!");
     http.end();
   }
-  // Sends data to AWS IoT Core via MQTT
+  /**
+   * Sends data to AWS IoT Core via MQTT
+   * @param moisture Moisture percentage
+   * @param threshold Moisture threshold
+   */
   static void sendToAWS_MQTT(int moisture, int threshold) {
     if (!mqttClient.connected()) beginMQTT();
-    String payload = "{\"moisture\":" + String(moisture) + ",\"threshold\":" + String(threshold) + "}";
-    bool success = mqttClient.publish(AWS_MQTT_TOPIC, payload.c_str());
+    char payload[64];
+    snprintf(payload, sizeof(payload), "{\"moisture\":%d,\"threshold\":%d}", moisture, threshold);
+    bool success = mqttClient.publish(AWS_MQTT_TOPIC, payload);
     Serial.print("AWS MQTT Publish: ");
     Serial.println(success ? "Success" : "Failed");
   }
-  // Unified send function: chooses HTTP or MQTT
+  /**
+   * Unified send function: chooses HTTP or MQTT
+   * @param moisture Moisture percentage
+   * @param threshold Moisture threshold
+   */
   static void send(int moisture, int threshold) {
     if (commMode == HTTP) sendToAWS_HTTP(moisture, threshold);
     else sendToAWS_MQTT(moisture, threshold);
@@ -295,10 +383,16 @@ WiFiClientSecure CloudClient::secureClient;
 PubSubClient CloudClient::mqttClient(CloudClient::secureClient);
 
 // --- OTA MODULE ---
-// Handles Over-the-Air firmware updates
+/**
+ * OTAUpdater
+ * Handles Over-the-Air firmware updates using ArduinoOTA library.
+ */
 class OTAUpdater {
 public:
-  // Initializes OTA and sets up event handlers
+  /**
+   * Initializes OTA and sets up event handlers
+   * @param hostname Device hostname for OTA
+   */
   void begin(const char* hostname = "SmartIrrigationNode") {
     ArduinoOTA.setHostname(hostname);
     ArduinoOTA.onStart([]() {
@@ -321,22 +415,42 @@ public:
     ArduinoOTA.begin();
     Serial.println("OTA Ready. Update via network.");
   }
-  // Handles OTA events (call in loop if not sleeping)
+  /**
+   * Handles OTA events (call in loop if not sleeping)
+   */
   void handle() {
     ArduinoOTA.handle();
   }
 };
 
 // --- BUTTON MODULE ---
-// Handles button events and long/short press detection
+/**
+ * Button
+ * Handles button events and long/short press detection.
+ * Encapsulates initialization and press logic for wakeup and OTA mode.
+ */
 class Button {
   uint8_t pin;
 public:
+  /**
+   * Constructor: sets the button pin
+   * @param p GPIO pin number
+   */
   Button(uint8_t p) : pin(p) {}
+  /**
+   * Initializes the button pin
+   */
   void begin() { pinMode(pin, INPUT_PULLUP); }
-  // Returns true if button is currently pressed (active LOW)
+  /**
+   * Returns true if button is currently pressed (active LOW)
+   * @return true if pressed
+   */
   bool isPressed() { return digitalRead(pin) == LOW; }
-  // Waits for a long press (durationMs), returns true if detected
+  /**
+   * Waits for a long press (durationMs), returns true if detected
+   * @param durationMs Duration in milliseconds
+   * @return true if long press detected
+   */
   bool waitForLongPress(uint32_t durationMs) {
     uint32_t start = millis();
     while (isPressed()) {
@@ -345,7 +459,11 @@ public:
     }
     return false;
   }
-  // Waits for a short press (durationMs), returns true if detected
+  /**
+   * Waits for a short press (durationMs), returns true if detected
+   * @param durationMs Duration in milliseconds
+   * @return true if short press detected
+   */
   bool waitForShortPress(uint32_t durationMs) {
     uint32_t start = millis();
     while (isPressed()) {
@@ -357,7 +475,11 @@ public:
 };
 
 // --- SYSTEM MANAGER ---
-// Main class that manages all modules and system logic
+/**
+ * SmartIrrigationNode
+ * Main class that manages all modules and system logic for the smart irrigation node.
+ * Handles initialization, irrigation cycle, OTA, button events, and power management.
+ */
 class SmartIrrigationNode {
   SoilMoistureSensor sensor; // Soil moisture sensor
   ValveActuator valve;       // Valve actuator
@@ -367,9 +489,13 @@ class SmartIrrigationNode {
   OTAUpdater ota;            // OTA updater
   Button button;             // Button handler
 public:
-  // Constructor: initializes sensor, valve, and button pins
+  /**
+   * Constructor: initializes sensor, valve, and button pins
+   */
   SmartIrrigationNode() : sensor(SOIL_PIN), valve(VALVE_PIN), button(BUTTON_PIN) {}
-  // Initializes all modules
+  /**
+   * Initializes all modules (Serial, EEPROM, WiFi, sensor, actuator, OTA, button)
+   */
   void begin() {
     Serial.begin(115200);
     delay(100);
@@ -380,45 +506,47 @@ public:
     ota.begin();
     button.begin();
   }
-  // Runs one irrigation cycle: sense, act, report
+  /**
+   * Runs one irrigation cycle: sense, act, report
+   * Reads moisture, controls valve, sends data to LoRaWAN and AWS
+   */
   void runCycle() {
     int threshold = thresholdConfig.get();
     int moisture = sensor.readPercent();
-    Serial.print("Soil moisture: ");
-    Serial.print(moisture);
-    Serial.println("%");
-    Serial.print("Threshold: ");
-    Serial.println(threshold);
-    // Actuator logic: turn valve ON if moisture below threshold
-    if (moisture < threshold) {
-      valve.on();
-      Serial.println("Valve ON");
-    } else {
-      valve.off();
-      Serial.println("Valve OFF");
-    }
-    // Simulate LoRaWAN packet
+    Serial.printf("Soil moisture: %d%%\nThreshold: %d\n", moisture, threshold);
+    bool valveState = (moisture < threshold);
+    valveState ? valve.on() : valve.off();
+    Serial.println(valveState ? "Valve ON" : "Valve OFF");
     lorawan.sendPayload(moisture, threshold);
-    // Send data to AWS cloud (HTTP or MQTT)
     CloudClient::send(moisture, threshold);
   }
-  // Updates threshold and saves to EEPROM
+  /**
+   * Updates threshold and saves to EEPROM
+   * @param t New threshold value
+   */
   void setThreshold(int t) {
     thresholdConfig.set(t);
     Serial.print("Threshold updated to: ");
     Serial.println(t);
   }
-  // De-initializes all hardware for power saving
+  /**
+   * De-initializes all hardware for power saving
+   */
   void deinitHardware() {
     valve.deinit();
     sensor.deinit();
     wifi.deinit();
   }
-  // Handles OTA events (call in loop if not sleeping)
+  /**
+   * Handles OTA events (call in loop if not sleeping)
+   */
   void handleOTA() {
     ota.handle();
   }
-  // Handles button events for wakeup and OTA mode
+  /**
+   * Handles button events for wakeup and OTA mode
+   * Detects wakeup cause, manages OTA mode, and prepares for deep sleep
+   */
   void handleButtonEvents() {
     // Determine wakeup cause
     bool wokeByButton = (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0);
@@ -476,7 +604,6 @@ void setup() {
     }
   }
   node.runCycle();
-  delay(100);
   node.handleButtonEvents();
 }
 
