@@ -420,46 +420,37 @@ public:
   }
   // Handles button events for wakeup and OTA mode
   void handleButtonEvents() {
-    // If woke by button, check for long press (OTA mode)
-    if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) {
+    // Determine wakeup cause
+    bool wokeByButton = (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0);
+    bool enterOTAMode = false;
+    if (wokeByButton) {
       Serial.println("Woke up by button press!");
-      if (button.isPressed() && button.waitForLongPress(5000)) {
-        Serial.println("Entering OTA mode for 5 minutes...");
-        uint32_t otaStart = millis();
-        while (millis() - otaStart < 5 * 60 * 1000UL) {
-          handleOTA();
-          delay(10);
-          // If button pressed again, break early
-          if (button.isPressed() && button.waitForShortPress(2000)) {
-            Serial.println("Exiting OTA mode early due to button press.");
-            break;
-          }
-        }
-        Serial.println("OTA mode finished. Going to deep sleep.");
-        deinitHardware();
-        button.begin();
-        esp_sleep_enable_timer_wakeup(60 * 1000000ULL);
-        esp_sleep_enable_ext0_wakeup((gpio_num_t)BUTTON_PIN, 0);
-        Serial.println("Entering deep sleep...");
-        esp_deep_sleep_start();
-      } else {
-        // Normal wakeup by button, run cycle and sleep
-        deinitHardware();
-        button.begin();
-        esp_sleep_enable_timer_wakeup(60 * 1000000ULL);
-        esp_sleep_enable_ext0_wakeup((gpio_num_t)BUTTON_PIN, 0);
-        Serial.println("Entering deep sleep...");
-        esp_deep_sleep_start();
-      }
-    } else {
-      // Woke by timer, run cycle and sleep
-      deinitHardware();
-      button.begin();
-      esp_sleep_enable_timer_wakeup(60 * 1000000ULL);
-      esp_sleep_enable_ext0_wakeup((gpio_num_t)BUTTON_PIN, 0);
-      Serial.println("Entering deep sleep...");
-      esp_deep_sleep_start();
+      // Check for long press to enter OTA mode
+      enterOTAMode = button.isPressed() && button.waitForLongPress(5000);
     }
+
+    if (enterOTAMode) {
+      Serial.println("Entering OTA mode for 5 minutes...");
+      uint32_t otaEnd = millis() + 5 * 60 * 1000UL;
+      while (millis() < otaEnd) {
+        handleOTA();
+        delay(10);
+        // Early exit if button pressed again (short press)
+        if (button.isPressed() && button.waitForShortPress(2000)) {
+          Serial.println("Exiting OTA mode early due to button press.");
+          break;
+        }
+      }
+      Serial.println("OTA mode finished. Going to deep sleep.");
+    }
+
+    // Prepare for deep sleep (always executed after OTA or normal cycle)
+    deinitHardware();
+    button.begin();
+    esp_sleep_enable_timer_wakeup(60 * 1000000ULL);
+    esp_sleep_enable_ext0_wakeup((gpio_num_t)BUTTON_PIN, 0);
+    Serial.println("Entering deep sleep...");
+    esp_deep_sleep_start();
   }
 };
 
@@ -467,15 +458,6 @@ public:
 // Instantiates the system manager and runs the main logic
 SmartIrrigationNode node;
 
-// Helper function to detect long button press (5 seconds)
-bool isLongButtonPress(uint8_t pin, uint32_t durationMs = 5000) {
-  uint32_t start = millis();
-  while (digitalRead(pin) == LOW) {
-    if (millis() - start >= durationMs) return true;
-    delay(10);
-  }
-  return false;
-}
 
 void setup() {
   node.begin();
