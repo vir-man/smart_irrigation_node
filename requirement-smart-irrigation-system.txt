@@ -1,0 +1,38 @@
+Practical Assignment: Smart Irrigation Node
+(ESP32)
+
+Objective:
+Develop embedded firmware on an ESP32 board that simulates a low-power smart irrigation node.
+The system should read environmental data (mocked or analog), control an actuator (LED),
+simulate LoRaWAN payload generation, and implement power-saving deep sleep cycles.
+
+Requirements:
+• ESP32 development board (required).
+• Basic components: LED, resistors, wires (required).
+• Potentiometer (optional – for analog soil moisture simulation).
+• Button (optional – to simulate user input or wake-up source).
+
+
+Assignment Tasks:
+1. Sensor Simulation: - Simulate soil moisture using a potentiometer or mocked analog values.
+- Convert readings to moisture percentage (0–100%).
+2. Actuator Control: - Use an LED to represent a solenoid valve. - Turn ON if moisture < 30%,
+OFF otherwise.
+3. LoRaWAN Packet Simulation: - Format and print payload (e.g., 0x1E for 30% moisture). -
+Simulate sending over LoRa by outputting to Serial Monitor.
+4. Power Optimization: - Use deep sleep mode for 1 minute between readings. - Wake using
+RTC timer and preserve state using RTC memory or EEPROM.
+
+
+Deliverables:
+• Firmware source code with comments.
+• README explaining the working, payload format, and deep sleep strategy.
+• Optional: Short video or screenshots of the system running (Serial output + LED behavior).
+
+Evaluation Criteria:
+• Correctness of sensor simulation and actuator logic.
+• Proper use of deep sleep and wake-up functionality.
+• Structure and clarity of code and documentation.
+• Efficiency and thoughtfulness in payload construction.
+• Bonus: EEPROM use, CRC in payload, threshold configuration, simulated HTTP/cloud
+interaction.
