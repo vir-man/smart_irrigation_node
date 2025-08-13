@@ -137,6 +137,17 @@ public:
   }
 };
 
+/**
+ * Clears all EEPROM data (for troubleshooting or resetting configuration)
+ */
+void clearEEPROM() {
+  for (int i = 0; i < EEPROM_SIZE; i++) {
+    EEPROM.write(i, 0);
+  }
+  EEPROM.commit();
+  Serial.println("EEPROM cleared.");
+}
+
 // --- CRC MODULE ---
 /**
  * CRC8
@@ -215,7 +226,7 @@ public:
       ssid[i] = EEPROM.read(WIFI_CRED_EEPROM_ADDR + i);
       pass[i] = EEPROM.read(WIFI_CRED_EEPROM_ADDR + WIFI_CRED_MAXLEN + i);
     }
-    provisioned = (ssid[0] != 0 && pass[0] != 0);
+    //provisioned = (ssid[0] != 0 && pass[0] != 0);
   }
   /**
    * Saves credentials to EEPROM
@@ -485,10 +496,10 @@ class SmartIrrigationNode {
   ValveActuator valve;       // Valve actuator
   ThresholdConfig thresholdConfig; // Threshold config
   LoRaWAN lorawan;           // LoRaWAN simulator
-  WiFiManager wifi;          // WiFi manager
   OTAUpdater ota;            // OTA updater
   Button button;             // Button handler
-public:
+  public:
+  WiFiManager wifi;          // WiFi manager
   /**
    * Constructor: initializes sensor, valve, and button pins
    */
@@ -588,7 +599,20 @@ SmartIrrigationNode node;
 
 
 void setup() {
+  clearEEPROM();
   node.begin();
+  // Print WiFi credentials for debugging
+  Serial.print("WiFi SSID: ");
+  Serial.println(node.wifi.ssid);
+  Serial.print("WiFi Password: ");
+  Serial.println(node.wifi.pass);
+
+  // Only enter provisioning mode if NOT waking from deep sleep
+  if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_EXT0 && !node.wifi.provisioned) {
+    node.wifi.startProvisioning();
+    node.wifi.connectWiFi();
+  }
+
   // Optional: set communication mode via Serial (type "mqtt" or "http")
   if (Serial.available()) {
     String mode = Serial.readStringUntil('\n');
@@ -604,7 +628,7 @@ void setup() {
     }
   }
   node.runCycle();
-  node.handleButtonEvents();
+  // node.handleButtonEvents();
 }
 
 void loop() {
