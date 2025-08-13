@@ -19,14 +19,43 @@ This project implements a low-power smart irrigation node using an ESP32. The no
 - Push button (for wake-up)
 - Resistors, wires
 
-## System Block Diagram (Graphical)
+## System Block Diagram
+
 ```mermaid
 flowchart TD
-    SoilSensor[Potentiometer (Soil Sensor)] -->|Analog| ESP32
-    Valve[LED (Valve)] -->|Digital| ESP32
-    Button[Push Button] -->|Digital| ESP32
-    ESP32 -->|WiFi| Cloud[AWS IoT Core]
-    ESP32 -->|Serial| User[Serial Monitor]
+    SoilSensor[Potentiometer (Soil Sensor)] -->>|Analog| ESP32
+    Valve[LED (Valve)] -->>|Digital| ESP32
+    Button[Push Button] -->>|Digital| ESP32
+    ESP32 -->>|WiFi| Cloud[AWS IoT Core]
+    ESP32 -->>|Serial| User[Serial Monitor]
+```
+
+> **Note:** The original diagram uses Mermaid syntax, which is not supported by GitHub or most Markdown viewers. For a graphical view, use the [Mermaid Live Editor](https://mermaid.live/) or a Markdown editor with Mermaid support. Below is an ASCII diagram for universal compatibility.
+
+```
++-------------------+      +-------------------+
+| Potentiometer     |      | LED (Valve)       |
+| (Soil Sensor)     |      |                   |
++-------------------+      +-------------------+
+         | Analog                | Digital
+         v                       v
+      +-------------------------------+
+      |           ESP32               |
+      |  - Reads Soil Moisture        |
+      |  - Controls Valve             |
+      |  - Handles Button             |
+      |  - WiFi Provisioning          |
+      |  - Sends Data to AWS IoT Core |
+      +-------------------------------+
+         ^                       ^
+         | Digital               |
++-------------------+            |
+| Push Button       |            |
++-------------------+            |
+                                 |
+      +-------------------------------+
+      |         AWS IoT Core           |
+      +-------------------------------+
 ```
 
 ## Advanced Usage Scenarios
