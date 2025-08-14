@@ -304,7 +304,7 @@ if (button.isPressed() && button.waitForLongPress(5000)) {
 ## Additional Resources
 - [ESP32 Deep Sleep Documentation](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/sleep_modes.html)
 - [AWS IoT Core Getting Started](https://docs.aws.amazon.com/iot/latest/developerguide/iot-gs.html)
-- [ArduinoOTA Library](https://github.com/arduino-libraries/ArduinoOTA)
+- [ArduinoOTA Library](https://github.com/arduino-libraries/Arduino_ESP32_OTA)
 
 ## License
 MIT License
