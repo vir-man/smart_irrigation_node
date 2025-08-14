@@ -674,6 +674,7 @@ void loop() {
   }
   // Optionally handle OTA events if needed
   node.handleOTA();
+  node.handleButtonEvents();
   #endif
   // ...existing code...
 }
