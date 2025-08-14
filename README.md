@@ -141,22 +141,23 @@ Password: [__________]
 
 ## Button Handling and OTA Feature
 
+
 ### Button Handling
-- The push button connected to `BUTTON_PIN` is used for waking up the device from deep sleep and for entering OTA update mode.
-- **Wake-Up:**
-  - If the device is in deep sleep, pressing the button will wake it up and start a new irrigation cycle.
-- **OTA Mode:**
-  - If the button is held for more than 5 seconds after wake-up, the device enters OTA (Over-the-Air) update mode.
-  - In OTA mode, the device is available for firmware updates via the ArduinoOTA protocol for 5 minutes.
-  - If the button is pressed again for a short duration (2 seconds) during OTA mode, the device will exit OTA mode early and return to deep sleep.
-- **Debouncing and Detection:**
-  - The firmware uses time-based detection for long and short presses, ensuring reliable event handling.
+- The device supports two buttons:
+  - **Wake/OTA Button** (`BUTTON_PIN`):
+    - Brief press: Wakes device from deep sleep, runs irrigation cycle, and returns to sleep.
+    - Hold for >5 seconds after wake-up: Enters OTA (Over-the-Air) update mode for 5 minutes.
+    - Press again for ~2 seconds during OTA mode: Exits OTA mode and sleeps.
+  - **Provisioning Button** (`BUTTON_PROV_PIN`):
+    - Hold for >5 seconds at any time: Device enters WiFi provisioning mode, starts AP and web server for entering new WiFi credentials.
+    - After saving credentials, device reboots and connects to new WiFi.
 
 #### Example Button Usage
 ```
-- Press button briefly: Device wakes up, runs irrigation cycle, and returns to sleep.
-- Hold button for >5 seconds: Device enters OTA mode for 5 minutes.
-- Press button again for ~2 seconds during OTA mode: Device exits OTA mode and sleeps.
+- Press Wake/OTA button briefly: Device wakes up, runs irrigation cycle, and returns to sleep.
+- Hold Wake/OTA button for >5 seconds: Device enters OTA mode for 5 minutes.
+- Press Wake/OTA button again for ~2 seconds during OTA mode: Device exits OTA mode and sleeps.
+- Hold Provisioning button for >5 seconds: Device enters WiFi provisioning mode (AP/web server).
 ```
 
 ### OTA (Over-the-Air) Updates

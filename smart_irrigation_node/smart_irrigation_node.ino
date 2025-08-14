@@ -13,9 +13,12 @@
 #include <ArduinoOTA.h> // OTA library for ESP32
 
 // --- CONFIGURATION ---
+#define DISABLE_DEEP_SLEEP 0 // Set to 1 to disable deep sleep mode
+#define DEEP_SLEEP_INTERVAL_SEC 60 // Deep sleep interval in seconds
 #define SOIL_PIN 34 // Analog pin for soil moisture sensor (potentiometer)
 #define VALVE_PIN 2 // Digital pin for valve actuator (LED)
 #define BUTTON_PIN 0 // GPIO for wake-up button
+#define BUTTON_PROV_PIN 15 // GPIO for WiFi provisioning button
 #define EEPROM_SIZE (WIFI_CRED_EEPROM_ADDR + 2*WIFI_CRED_MAXLEN) // EEPROM size for threshold + WiFi credentials
 #define EEPROM_ADDR 0 // EEPROM address for threshold
 #define DEFAULT_THRESHOLD 30 // Default moisture threshold (%)
@@ -226,7 +229,7 @@ public:
       ssid[i] = EEPROM.read(WIFI_CRED_EEPROM_ADDR + i);
       pass[i] = EEPROM.read(WIFI_CRED_EEPROM_ADDR + WIFI_CRED_MAXLEN + i);
     }
-    //provisioned = (ssid[0] != 0 && pass[0] != 0);
+    provisioned = (ssid[0] != 0 && pass[0] != 0);
   }
   /**
    * Saves credentials to EEPROM
@@ -456,7 +459,14 @@ public:
    * Returns true if button is currently pressed (active LOW)
    * @return true if pressed
    */
-  bool isPressed() { return digitalRead(pin) == LOW; }
+  bool isPressed() {
+    // Simple debounce: require LOW for at least 50ms
+    if (digitalRead(pin) == LOW) {
+      delay(50);
+      return digitalRead(pin) == LOW;
+    }
+    return false;
+  }
   /**
    * Waits for a long press (durationMs), returns true if detected
    * @param durationMs Duration in milliseconds
@@ -497,13 +507,14 @@ class SmartIrrigationNode {
   ThresholdConfig thresholdConfig; // Threshold config
   LoRaWAN lorawan;           // LoRaWAN simulator
   OTAUpdater ota;            // OTA updater
-  Button button;             // Button handler
-  public:
+  Button button;             // Main button handler
+  Button provButton;         // Provisioning button handler
+public:
   WiFiManager wifi;          // WiFi manager
   /**
    * Constructor: initializes sensor, valve, and button pins
    */
-  SmartIrrigationNode() : sensor(SOIL_PIN), valve(VALVE_PIN), button(BUTTON_PIN) {}
+  SmartIrrigationNode() : sensor(SOIL_PIN), valve(VALVE_PIN), button(BUTTON_PIN), provButton(BUTTON_PROV_PIN) {}
   /**
    * Initializes all modules (Serial, EEPROM, WiFi, sensor, actuator, OTA, button)
    */
@@ -516,6 +527,7 @@ class SmartIrrigationNode {
     valve.begin();
     ota.begin();
     button.begin();
+    provButton.begin();
   }
   /**
    * Runs one irrigation cycle: sense, act, report
@@ -562,13 +574,24 @@ class SmartIrrigationNode {
     // Determine wakeup cause
     bool wokeByButton = (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0);
     bool enterOTAMode = false;
+    bool enterProvisioning = false;
     if (wokeByButton) {
       Serial.println("Woke up by button press!");
       // Check for long press to enter OTA mode
       enterOTAMode = button.isPressed() && button.waitForLongPress(5000);
     }
-
-    if (enterOTAMode) {
+    // Check for provisioning button long press
+    enterProvisioning = provButton.isPressed() && provButton.waitForLongPress(5000);
+    // Prevent simultaneous OTA/provisioning
+    if (enterOTAMode && enterProvisioning) {
+      Serial.println("Both buttons held. Prioritizing provisioning mode.");
+      enterOTAMode = false;
+    }
+    if (enterProvisioning) {
+      Serial.println("Provisioning button held for 5 seconds. Entering WiFi provisioning mode...");
+      wifi.startProvisioning();
+      wifi.connectWiFi();
+    } else if (enterOTAMode) {
       Serial.println("Entering OTA mode for 5 minutes...");
       uint32_t otaEnd = millis() + 5 * 60 * 1000UL;
       while (millis() < otaEnd) {
@@ -582,14 +605,18 @@ class SmartIrrigationNode {
       }
       Serial.println("OTA mode finished. Going to deep sleep.");
     }
-
-    // Prepare for deep sleep (always executed after OTA or normal cycle)
+    // Prepare for deep sleep (always executed after OTA, provisioning, or normal cycle)
     deinitHardware();
     button.begin();
-    esp_sleep_enable_timer_wakeup(60 * 1000000ULL);
+    provButton.begin();
+    esp_sleep_enable_timer_wakeup(DEEP_SLEEP_INTERVAL_SEC * 1000000ULL);
     esp_sleep_enable_ext0_wakeup((gpio_num_t)BUTTON_PIN, 0);
-    Serial.println("Entering deep sleep...");
-    esp_deep_sleep_start();
+    #if DISABLE_DEEP_SLEEP
+      Serial.println("Deep sleep disabled by macro. Staying awake.");
+    #else
+      Serial.println("Entering deep sleep...");
+      esp_deep_sleep_start();
+    #endif
   }
 };
 
@@ -599,7 +626,7 @@ SmartIrrigationNode node;
 
 
 void setup() {
-  clearEEPROM();
+  // clearEEPROM();
   node.begin();
   // Print WiFi credentials for debugging
   Serial.print("WiFi SSID: ");
@@ -612,6 +639,8 @@ void setup() {
     node.wifi.startProvisioning();
     node.wifi.connectWiFi();
   }
+  // If provisioning button is held for 5 seconds, enter WiFi provisioning mode
+  // (Handled in handleButtonEvents for consistency)
 
   // Optional: set communication mode via Serial (type "mqtt" or "http")
   if (Serial.available()) {
@@ -628,9 +657,23 @@ void setup() {
     }
   }
   node.runCycle();
-  // node.handleButtonEvents();
+  node.handleButtonEvents();
 }
 
 void loop() {
-  // do nothing
+  #if DISABLE_DEEP_SLEEP
+  /**
+   * If Deep sleep mode is disabled, 
+   * controller perform the runCycle routine every deep sleep timer interval
+   */
+  static unsigned long lastRun = 0;
+  unsigned long now = millis();
+  if (now - lastRun >= DEEP_SLEEP_INTERVAL_SEC * 1000UL) {
+    lastRun = now;
+    node.runCycle();
+  }
+  // Optionally handle OTA events if needed
+  node.handleOTA();
+  #endif
+  // ...existing code...
 }
